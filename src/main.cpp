@@ -1,11 +1,20 @@
 #include <WiFi.h>
-#include "FastLED.h"
+#include <LiteLED.h>
 #include "pitches.h"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
+#define LED_TYPE        LED_STRIP_SM16703
+#define LED_TYPE_IS_RGBW    0
 #define NUM_LEDS 1
-CRGB leds[NUM_LEDS];
+static const uint8_t currBright = 20;    // change this to set the brightness level of the matrix
+
+static const crgb_t L_BLACK = 0x000000;
+static const crgb_t L_RED   = 0x2f0000;
+static const crgb_t L_GREEN = 0x002f00;
+static const crgb_t L_BLUE  = 0x00002f;
+static const crgb_t L_WHITE = 0x0f0f0f;
+
 // Data pin that led data will be written out over
 #define LED_DATA_PIN 6
 #define BUZZER_PIN 2
@@ -110,10 +119,15 @@ const long timeoutTime = 2000;
 const long songTime = 0;
 const long beepDelay = 800;
 
+LiteLED myDisplay( LED_TYPE, LED_TYPE_IS_RGBW );    // create the LiteLED object
+
 void setup() {
   delay(2000);
   Serial.begin(921600);
-  FastLED.addLeds<SM16703, LED_DATA_PIN, BRG>(leds, NUM_LEDS);
+
+  myDisplay.begin( LED_DATA_PIN, NUM_LEDS );        // initialze the myDisplay object.
+  myDisplay.brightness( currBright );
+  
   pinMode(BUZZER_PIN,OUTPUT);
   digitalWrite(BUZZER_PIN,LOW);
   pinMode(DETONATE_PIN,OUTPUT);
@@ -173,12 +187,10 @@ void setup() {
 void loop(){
   if(playingBeep){
     tone(BUZZER_PIN, 1000);
-    leds[0] = CRGB::Red;
-    FastLED.show();
+    myDisplay.fill(L_RED, true);
     delay(beepDelay); 
     noTone(BUZZER_PIN); 
-    leds[0] = CRGB::Black;
-    FastLED.show();
+    myDisplay.fill(L_BLACK, true);
     delay(beepDelay);  
     return;
   }
@@ -187,11 +199,9 @@ void loop(){
     //to calculate the note duration, take one second divided by the note type. 
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc. 
     int duration = 1000 / durations[note]; 
-    leds[0] = CRGB::Red;
-    FastLED.show();
+    myDisplay.fill(L_RED, true);
     tone(BUZZER_PIN, melody[note], duration); 
-    leds[0] = CRGB::Blue;
-    FastLED.show();
+    myDisplay.fill(L_BLUE, true);
     //to distinguish the notes, set a minimum time between them. 
     //the note's duration + 30% seems to work well: 
     int pauseBetweenNotes = duration * 1.30; 
