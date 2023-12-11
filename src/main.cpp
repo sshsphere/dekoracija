@@ -108,7 +108,7 @@ unsigned long previousTime = 0;
 // Define timeout time in milliseconds (example: 2000ms = 2s)
 const long timeoutTime = 2000;
 const long songTime = 0;
-const long beepFrequency = 500;
+const long beepDelay = 800;
 
 void setup() {
   delay(2000);
@@ -175,11 +175,11 @@ void loop(){
     tone(BUZZER_PIN, 1000);
     leds[0] = CRGB::Red;
     FastLED.show();
-    delay(1000); 
+    delay(beepDelay); 
     noTone(BUZZER_PIN); 
     leds[0] = CRGB::Black;
     FastLED.show();
-    delay(1000);  
+    delay(beepDelay);  
     return;
   }
   int size = sizeof(durations) / sizeof(int); 
