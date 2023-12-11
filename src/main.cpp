@@ -1,59 +1,105 @@
 #include <WiFi.h>
+#include "FastLED.h"
 #include "pitches.h"
-#define NUM_LEDS 3
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 
+#define NUM_LEDS 1
+CRGB leds[NUM_LEDS];
 // Data pin that led data will be written out over
 #define LED_DATA_PIN 6
 #define BUZZER_PIN 2
 #define DETONATE_PIN 12
+
 // Replace with your network credentials
 const char* ssid = "HspPhone";
 const char* password = "eprue123";
-int melody[] = {
-  REST, REST, REST, NOTE_DS4, 
-  NOTE_E4, REST, NOTE_FS4, NOTE_G4, REST, NOTE_DS4,
-  NOTE_E4, NOTE_FS4,  NOTE_G4, NOTE_C5, NOTE_B4, NOTE_E4, NOTE_G4, NOTE_B4,   
-  NOTE_AS4, NOTE_A4, NOTE_G4, NOTE_E4, NOTE_D4, 
-  NOTE_E4, REST, REST, NOTE_DS4,
-  
-  NOTE_E4, REST, NOTE_FS4, NOTE_G4, REST, NOTE_DS4,
-  NOTE_E4, NOTE_FS4,  NOTE_G4, NOTE_C5, NOTE_B4, NOTE_G4, NOTE_B4, NOTE_E5,
-  NOTE_DS5,   
-  NOTE_D5, REST, REST, NOTE_DS4, 
-  NOTE_E4, REST, NOTE_FS4, NOTE_G4, REST, NOTE_DS4,
-  NOTE_E4, NOTE_FS4,  NOTE_G4, NOTE_C5, NOTE_B4, NOTE_E4, NOTE_G4, NOTE_B4,   
-  
-  NOTE_AS4, NOTE_A4, NOTE_G4, NOTE_E4, NOTE_D4, 
-  NOTE_E4, REST,
-  REST, NOTE_E5, NOTE_D5, NOTE_B4, NOTE_A4, NOTE_G4, NOTE_E4,
-  NOTE_AS4, NOTE_A4, NOTE_AS4, NOTE_A4, NOTE_AS4, NOTE_A4, NOTE_AS4, NOTE_A4,   
-  NOTE_G4, NOTE_E4, NOTE_D4, NOTE_E4, NOTE_E4, NOTE_E4
-};
-int durations[] = {
-  2, 4, 8, 8, 
-  4, 8, 8, 4, 8, 8,
-  8, 8,  8, 8, 8, 8, 8, 8,   
-  2, 16, 16, 16, 16, 
-  2, 4, 8, 4,
-  
-  4, 8, 8, 4, 8, 8,
-  8, 8,  8, 8, 8, 8, 8, 8,
-  1,   
-  2, 4, 8, 8, 
-  4, 8, 8, 4, 8, 8,
-  8, 8,  8, 8, 8, 8, 8, 8,   
-  
-  2, 16, 16, 16, 16, 
-  4, 4,
-  4, 8, 8, 8, 8, 8, 8,
-  16, 8, 16, 8, 16, 8, 16, 8,   
-  16, 16, 16, 16, 16, 2
-};
-// Set web server port number to 80
-WiFiServer server(80);
 
-// Variable to store the HTTP request
-String header;
+const char* PARAM_INPUT_1 = "output";
+const char* PARAM_INPUT_2 = "state";
+
+int melody[] = {
+  NOTE_E5, NOTE_E5, NOTE_E5,
+  NOTE_E5, NOTE_E5, NOTE_E5,
+  NOTE_E5, NOTE_G5, NOTE_C5, NOTE_D5,
+  NOTE_E5,
+  NOTE_F5, NOTE_F5, NOTE_F5, NOTE_F5,
+  NOTE_F5, NOTE_E5, NOTE_E5, NOTE_E5, NOTE_E5,
+  NOTE_E5, NOTE_D5, NOTE_D5, NOTE_E5,
+  NOTE_D5, NOTE_G5
+};
+
+int durations[] = {
+  8, 8, 4,
+  8, 8, 4,
+  8, 8, 8, 8,
+  2,
+  8, 8, 8, 8,
+  8, 8, 8, 16, 16,
+  8, 8, 8, 8,
+  4, 4
+};
+bool playingBeep=false;
+// Set web server port number to 80
+AsyncWebServer server(80);
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML><html>
+<head>
+  <title>ESP Web Server</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <style>
+    html {font-family: Arial; display: inline-block; text-align: center;}
+    h2 {font-size: 3.0rem;}
+    p {font-size: 3.0rem;}
+    body {max-width: 600px; margin:0px auto; padding-bottom: 25px;}
+    .switch {position: relative; display: inline-block; width: 120px; height: 68px} 
+    .switch input {display: none}
+    .slider {position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; border-radius: 6px}
+    .slider:before {position: absolute; content: ""; height: 52px; width: 52px; left: 8px; bottom: 8px; background-color: #fff; -webkit-transition: .4s; transition: .4s; border-radius: 3px}
+    input:checked+.slider {background-color: #b30000}
+    input:checked+.slider:before {-webkit-transform: translateX(52px); -ms-transform: translateX(52px); transform: translateX(52px)}
+  </style>
+</head>
+<body>
+  <h2>ESP Web Server</h2>
+  %BUTTONPLACEHOLDER%
+<script>function toggleCheckbox(element) {
+  var xhr = new XMLHttpRequest();
+  if(element.checked){ xhr.open("GET", "/update?output="+element.id+"&state=1", true); }
+  else { xhr.open("GET", "/update?output="+element.id+"&state=0", true); }
+  xhr.send();
+}
+</script>
+</body>
+</html>
+)rawliteral";
+String outputState(int output){
+  if(digitalRead(output)){
+    return "checked";
+  }
+  else {
+    return "";
+  }
+}
+String musicState(){
+  if(playingBeep){
+    return "checked";
+  }
+  else {
+    return "";
+  }
+}
+String processor(const String& var){
+  //Serial.println(var);
+  if(var == "BUTTONPLACEHOLDER"){
+    String buttons = "";
+    buttons += "<h4>Output - Detonate</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\""+String(DETONATE_PIN)+"\" " + outputState(DETONATE_PIN) + "><span class=\"slider\"></span></label>";
+    buttons += "<h4>Output - Play beep instead of music</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"9991\" " + musicState() + "><span class=\"slider\"></span></label>";
+    return buttons;
+  }
+  return String();
+}
 
 // Current time
 unsigned long currentTime = millis();
@@ -61,13 +107,20 @@ unsigned long currentTime = millis();
 unsigned long previousTime = 0; 
 // Define timeout time in milliseconds (example: 2000ms = 2s)
 const long timeoutTime = 2000;
+const long songTime = 0;
+const long beepFrequency = 500;
 
 void setup() {
+  delay(2000);
   Serial.begin(921600);
+  FastLED.addLeds<SM16703, LED_DATA_PIN, BRG>(leds, NUM_LEDS);
   pinMode(BUZZER_PIN,OUTPUT);
+  digitalWrite(BUZZER_PIN,LOW);
   pinMode(DETONATE_PIN,OUTPUT);
+  digitalWrite(DETONATE_PIN,LOW);
+  pinMode(LED_DATA_PIN,OUTPUT);
+  digitalWrite(LED_DATA_PIN,LOW);
 
-  // Connect to Wi-Fi network with SSID and password
   Serial.print("Connecting to ");
   Serial.println(ssid);
   WiFi.begin(ssid, password);
@@ -80,91 +133,71 @@ void setup() {
   Serial.println("WiFi connected.");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  server.begin();
-}
-bool on=false;
-String onState="off";
-void loop(){
-  WiFiClient client = server.available();   // Listen for incoming clients
 
-  if (client) {                             // If a new client connects,
-    currentTime = millis();
-    previousTime = currentTime;
-    Serial.println("New Client.");          // print a message out in the serial port
-    String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected() && currentTime - previousTime <= timeoutTime) {  // loop while the client's connected
-      currentTime = millis();
 
-      if (client.available()) {             // if there's bytes to read from the client,
-        char c = client.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
-        header += c;
-        if (c == '\n') {                    // if the byte is a newline character
-          // if the current line is blank, you got two newline characters in a row.
-          // that's the end of the client HTTP request, so send a response:
-          if (currentLine.length() == 0) {
-            // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
-            // and a content-type so the client knows what's coming, then a blank line:
-            client.println("HTTP/1.1 200 OK");
-            client.println("Content-type:text/html");
-            client.println("Connection: close");
-            client.println();
-            
-            // turns the GPIOs on and off
-            if (header.indexOf("GET /detonate/on") >= 0) {
-              Serial.println("detonate on");
-              digitalWrite(DETONATE_PIN,HIGH);//boom
-              onState = "on";
-              on=true;
-            } else if (header.indexOf("GET /detonate/off") >= 0) {
-              Serial.println("detonate off");
-              digitalWrite(DETONATE_PIN,LOW);//no boom
-              onState = "off";
-              on=false;
-            } 
-            
-            // Display the HTML web page
-            client.println("<!DOCTYPE html><html>");
-            client.println("<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
-            client.println("<link rel=\"icon\" href=\"data:,\">");
-            // CSS to style the on/off buttons 
-            // Feel free to change the background-color and font-size attributes to fit your preferences
-            client.println("<style>html { font-family: Helvetica; display: inline-block; margin: 0px auto; text-align: center;}");
-            client.println(".button { background-color: #4CAF50; border: none; color: white; padding: 16px 40px;");
-            client.println("text-decoration: none; font-size: 30px; margin: 2px; cursor: pointer;}");
-            client.println(".button2 {background-color: #555555;}</style></head>");
-            
-            // Web Page Heading
-            client.println("<body><h1>ESP32 Web Server</h1>");
-            
-            // Display current state, and ON/OFF buttons for detonation
-            client.println("<p>Detonate - State " + onState + "</p>");
-            // If the onState is off, it displays the ON button       
-            if (onState=="off") {
-              client.println("<p><a href=\"/detonate/on\"><button class=\"button\">ON</button></a></p>");
-            } else {
-              client.println("<p><a href=\"/detonate/off\"><button class=\"button button2\">OFF</button></a></p>");
-            } 
-               
-            client.println("</body></html>");
-            
-            // The HTTP response ends with another blank line
-            client.println();
-            // Break out of the while loop
-            break;
-          } else { // if you got a newline, then clear currentLine
-            currentLine = "";
-          }
-        } else if (c != '\r') {  // if you got anything else but a carriage return character,
-          currentLine += c;      // add it to the end of the currentLine
-        }
+  // Route for root / web page
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/html", index_html, processor);
+  });
+
+  // Send a GET request to <ESP_IP>/update?output=<inputMessage1>&state=<inputMessage2>
+  server.on("/update", HTTP_GET, [] (AsyncWebServerRequest *request) {
+    String inputMessage1;
+    String inputMessage2;
+    // GET input1 value on <ESP_IP>/update?output=<inputMessage1>&state=<inputMessage2>
+    if (request->hasParam(PARAM_INPUT_1) && request->hasParam(PARAM_INPUT_2)) {
+      inputMessage1 = request->getParam(PARAM_INPUT_1)->value();
+      inputMessage2 = request->getParam(PARAM_INPUT_2)->value();
+      if(inputMessage1.toInt()-9990==1){
+        playingBeep=inputMessage2.toInt();
+      }
+      else{
+        digitalWrite(inputMessage1.toInt(), inputMessage2.toInt());
       }
     }
-    // Clear the header variable
-    header = "";
-    // Close the connection
-    client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
+    else {
+      inputMessage1 = "No message sent";
+      inputMessage2 = "No message sent";
+    }
+    Serial.print("GPIO: ");
+    Serial.print(inputMessage1);
+    Serial.print(" - Set to: ");
+    Serial.println(inputMessage2);
+    request->send(200, "text/plain", "OK");
+  });
+
+  // Start server
+  server.begin();
+}
+
+void loop(){
+  if(playingBeep){
+    tone(BUZZER_PIN, 1000);
+    leds[0] = CRGB::Red;
+    FastLED.show();
+    delay(1000); 
+    noTone(BUZZER_PIN); 
+    leds[0] = CRGB::Black;
+    FastLED.show();
+    delay(1000);  
+    return;
   }
+  int size = sizeof(durations) / sizeof(int); 
+  for (int note = 0; note < size; note++) { 
+    //to calculate the note duration, take one second divided by the note type. 
+    //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc. 
+    int duration = 1000 / durations[note]; 
+    leds[0] = CRGB::Red;
+    FastLED.show();
+    tone(BUZZER_PIN, melody[note], duration); 
+    leds[0] = CRGB::Blue;
+    FastLED.show();
+    //to distinguish the notes, set a minimum time between them. 
+    //the note's duration + 30% seems to work well: 
+    int pauseBetweenNotes = duration * 1.30; 
+    delay(pauseBetweenNotes); 
+    //stop the tone playing: 
+    noTone(BUZZER_PIN); 
+  } 
+
 }
