@@ -92,7 +92,7 @@ String processor(const String& var){
   //Serial.println(var);
   if(var == "BUTTONPLACEHOLDER"){
     String buttons = "";
-    buttons += "<h4>Output - Big suprise</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\""+String(DETONATE_PIN)+"\" " + outputState(DETONATE_PIN) + "><span class=\"slider\"></span></label>";
+    buttons += "<h4>Output - Big suprise</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\""+String(DETONATE_PIN)+"\" " + outputState(!DETONATE_PIN) + "><span class=\"slider\"></span></label>";
     buttons += "<h4>Output - Play beep instead of music</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"9991\" " + musicState() + "><span class=\"slider\"></span></label>";
     return buttons;
   }
@@ -115,7 +115,7 @@ void setup() {
   pinMode(BUZZER_PIN,OUTPUT);
   digitalWrite(BUZZER_PIN,LOW);
   pinMode(DETONATE_PIN,OUTPUT);
-  digitalWrite(DETONATE_PIN,LOW);
+  digitalWrite(DETONATE_PIN,HIGH);//high means dont detonate
   pinMode(LED_TRANSISTOR_PIN,LOW);
   digitalWrite(LED_TRANSISTOR_PIN,HIGH);
 
