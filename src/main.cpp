@@ -1,24 +1,13 @@
 #include <WiFi.h>
-#include <LiteLED.h>
 #include "pitches.h"
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 
-#define LED_TYPE        LED_STRIP_SM16703
-#define LED_TYPE_IS_RGBW    0
-#define NUM_LEDS 1
-static const uint8_t currBright = 20;    // change this to set the brightness level of the matrix
-
-static const crgb_t L_BLACK = 0x000000;
-static const crgb_t L_RED   = 0x2f0000;
-static const crgb_t L_GREEN = 0x002f00;
-static const crgb_t L_BLUE  = 0x00002f;
-static const crgb_t L_WHITE = 0x0f0f0f;
 
 // Data pin that led data will be written out over
-#define LED_DATA_PIN 6
-#define BUZZER_PIN 2
-#define DETONATE_PIN 12
+#define LED_TRANSISTOR_PIN 6
+#define BUZZER_PIN 11
+#define DETONATE_PIN 3
 
 // Replace with your network credentials
 const char* ssid = "HspPhone";
@@ -71,7 +60,7 @@ const char index_html[] PROGMEM = R"rawliteral(
   </style>
 </head>
 <body>
-  <h2>Ziemassvētku dekorācija</h2>
+  <h2>Ziemassvetku dekoracija</h2>
   %BUTTONPLACEHOLDER%
 <script>function toggleCheckbox(element) {
   var xhr = new XMLHttpRequest();
@@ -103,7 +92,7 @@ String processor(const String& var){
   //Serial.println(var);
   if(var == "BUTTONPLACEHOLDER"){
     String buttons = "";
-    buttons += "<h4>Output - Detonate</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\""+String(DETONATE_PIN)+"\" " + outputState(DETONATE_PIN) + "><span class=\"slider\"></span></label>";
+    buttons += "<h4>Output - Big suprise</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\""+String(DETONATE_PIN)+"\" " + outputState(DETONATE_PIN) + "><span class=\"slider\"></span></label>";
     buttons += "<h4>Output - Play beep instead of music</h4><label class=\"switch\"><input type=\"checkbox\" onchange=\"toggleCheckbox(this)\" id=\"9991\" " + musicState() + "><span class=\"slider\"></span></label>";
     return buttons;
   }
@@ -119,21 +108,16 @@ const long timeoutTime = 2000;
 const long songTime = 0;
 const long beepDelay = 800;
 
-LiteLED myDisplay( LED_TYPE, LED_TYPE_IS_RGBW );    // create the LiteLED object
-
 void setup() {
   delay(2000);
   Serial.begin(921600);
-
-  myDisplay.begin( LED_DATA_PIN, NUM_LEDS );        // initialze the myDisplay object.
-  myDisplay.brightness( currBright );
   
   pinMode(BUZZER_PIN,OUTPUT);
   digitalWrite(BUZZER_PIN,LOW);
   pinMode(DETONATE_PIN,OUTPUT);
   digitalWrite(DETONATE_PIN,LOW);
-  pinMode(LED_DATA_PIN,OUTPUT);
-  digitalWrite(LED_DATA_PIN,LOW);
+  pinMode(LED_TRANSISTOR_PIN,LOW);
+  digitalWrite(LED_TRANSISTOR_PIN,HIGH);
 
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -187,10 +171,10 @@ void setup() {
 void loop(){
   if(playingBeep){
     tone(BUZZER_PIN, 1000);
-    myDisplay.fill(L_RED, true);
+    digitalWrite(LED_TRANSISTOR_PIN,HIGH);
     delay(beepDelay); 
     noTone(BUZZER_PIN); 
-    myDisplay.fill(L_BLACK, true);
+    digitalWrite(LED_TRANSISTOR_PIN,LOW);
     delay(beepDelay);  
     return;
   }
@@ -199,9 +183,9 @@ void loop(){
     //to calculate the note duration, take one second divided by the note type. 
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc. 
     int duration = 1000 / durations[note]; 
-    myDisplay.fill(L_RED, true);
+    digitalWrite(LED_TRANSISTOR_PIN,HIGH);
     tone(BUZZER_PIN, melody[note], duration); 
-    myDisplay.fill(L_BLUE, true);
+    digitalWrite(LED_TRANSISTOR_PIN,LOW);
     //to distinguish the notes, set a minimum time between them. 
     //the note's duration + 30% seems to work well: 
     int pauseBetweenNotes = duration * 1.30; 
